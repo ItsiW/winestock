@@ -1,0 +1,18 @@
+name: winestock
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - beautifulsoup4
+  - black
+  - flake8
+  - ipykernel
+  - ipywidgets
+  - isort
+  - jupyter
+  - python=3.10
+  - pandas
+  - ratelimit
+  - requests
+  - tqdm
+  - unidecode
