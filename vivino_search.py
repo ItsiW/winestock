@@ -52,10 +52,24 @@ def search_site(site: str, categories: List[str]):
                     )
                     logging.warning(f"{n_pages} pages for {wine_type}")
                 except Exception:
-                    logging.warning(f"Error searching for {wine_type}", exc_info=True)
+                    logging.warning(
+                        f"Error searching for {wine_type}", exc_info=True
+                    )
                     break
             else:
-                data = page_data_fn(wine_type, page=page, get_n_pages=False)
+                try:
+                    data = page_data_fn(
+                        wine_type, page=page, get_n_pages=False
+                    )
+                except Exception:
+                    logging.warning(
+                        f"Could not retrieve page {page} for type {wine_type}",
+                        exc_info=True,
+                    )
+                    page += 1
+                    if page > n_pages:
+                        break
+                    continue
 
             # search each wine in vivino
             tqdm.pandas(desc=f"type: {wine_type}, page: {page}")
@@ -189,59 +203,70 @@ def add_vivino_info(df: pd.DataFrame, site: str):
 
 
 def _add_vivino_info(row):
-    r = _vivino_request_page(row.vivino_link)
-
-    dic = json.loads(re.search(VIVINO_INFO_PATTERN, r.text).group()[:-2])
-
+    
     try:
-        country = dic["vintage"]["wine"]["region"]["country"]["name"]
-    except TypeError:
-        country = dic["wine"]["winery"]["region"]["country"]["name"]
+        r = _vivino_request_page(row.vivino_link)
 
-    try:
-        region = dic["vintage"]["wine"]["region"]["name"]
-    except TypeError:
-        region = None
+        dic = json.loads(re.search(VIVINO_INFO_PATTERN, r.text).group()[:-2])
 
-    try:
-        winery_region = dic["wine"]["winery"]["region"]["name"]
-    except KeyError:
-        winery_region = None
-
-    if row.vintage:
         try:
-            entry = next(
-                item
-                for item in dic["vintage"]["wine"]["vintages"]
-                if item["year"] == row.vintage
-            )
-            vintage_score = entry["statistics"]["ratings_average"]
-            vintage_num_reviews = entry["statistics"]["ratings_count"]
-        except StopIteration:
-            vintage_score = None
-            vintage_num_reviews = None
-    else:
-        vintage_score = None
-        vintage_num_reviews = None
+            country = dic["vintage"]["wine"]["region"]["country"]["name"]
+        except TypeError:
+            country = dic["wine"]["winery"]["region"]["country"]["name"]
 
-    try:
-        style = dic["vintage"]["wine"]["style"]["varietal_name"]
-    except TypeError:
-        style = None
+        try:
+            region = dic["vintage"]["wine"]["region"]["name"]
+        except TypeError:
+            region = None
 
-    alcohol_perc = dic["vintage"]["wine"]["alcohol"]
-    if alcohol_perc == 0:
-        alcohol_perc = None
+        try:
+            winery_region = dic["wine"]["winery"]["region"]["name"]
+        except KeyError:
+            winery_region = None
 
-    if len(dic["highlights"]) > 0:
         if row.vintage:
             try:
-                price = next(
-                    year
-                    for year in dic["highlights"]
-                    if year["vintage_year"] == row.vintage
-                )["metadata"]["price"]["amount"]
-            except (StopIteration, TypeError):
+                entry = next(
+                    item
+                    for item in dic["vintage"]["wine"]["vintages"]
+                    if item["year"] == row.vintage
+                )
+                vintage_score = entry["statistics"]["ratings_average"]
+                vintage_num_reviews = entry["statistics"]["ratings_count"]
+            except StopIteration:
+                vintage_score = None
+                vintage_num_reviews = None
+        else:
+            vintage_score = None
+            vintage_num_reviews = None
+
+        try:
+            style = dic["vintage"]["wine"]["style"]["varietal_name"]
+        except TypeError:
+            style = None
+
+        alcohol_perc = dic["vintage"]["wine"]["alcohol"]
+        if alcohol_perc == 0:
+            alcohol_perc = None
+
+        if len(dic["highlights"]) > 0:
+            if row.vintage:
+                try:
+                    price = next(
+                        year
+                        for year in dic["highlights"]
+                        if year["vintage_year"] == row.vintage
+                    )["metadata"]["price"]["amount"]
+                except (StopIteration, TypeError):
+                    price = min(
+                        [
+                            year["metadata"]["price"]["amount"]
+                            if year["metadata"]["price"]
+                            else np.inf
+                            for year in dic["highlights"]
+                        ]
+                    )
+            else:
                 price = min(
                     [
                         year["metadata"]["price"]["amount"]
@@ -250,29 +275,24 @@ def _add_vivino_info(row):
                         for year in dic["highlights"]
                     ]
                 )
+
         else:
-            price = min(
-                [
-                    year["metadata"]["price"]["amount"]
-                    if year["metadata"]["price"]
-                    else np.inf
-                    for year in dic["highlights"]
-                ]
-            )
+            price = None
 
-    else:
-        price = None
+        if price == np.inf:
+            price = None
 
-    if price == np.inf:
-        price = None
+        return (
+            country,
+            region,
+            winery_region,
+            vintage_score,
+            vintage_num_reviews,
+            style,
+            alcohol_perc,
+            price,
+        )
 
-    return (
-        country,
-        region,
-        winery_region,
-        vintage_score,
-        vintage_num_reviews,
-        style,
-        alcohol_perc,
-        price,
-    )
+    except Exception:
+        logging.warning(f"Error for {row.title}", exc_info=True)
+        return None, None, None, None, None, None, None, None
