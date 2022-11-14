@@ -46,11 +46,11 @@ def get_data_best_buy(
     df = pd.DataFrame(wines, columns=["title", "price", "url"])
 
     if get_n_pages:
-        return _format_df_get_data_best_buy(df), float(
+        return _format_df_best_buy(df), float(
             soup.find(class_="pagination__text").text.strip().split()[-1]
         )
 
-    return _format_df_get_data_best_buy(df)
+    return _format_df_best_buy(df)
 
 
 def is_float(x: str):
@@ -61,7 +61,7 @@ def is_float(x: str):
         return False
 
 
-def _format_df_get_data_best_buy(data: pd.DataFrame):
+def _format_df_best_buy(data: pd.DataFrame):
 
     remove_list = [
         "Vineyards",

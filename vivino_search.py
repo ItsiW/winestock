@@ -72,7 +72,7 @@ def search_site(site: str, categories: List[str]):
                     continue
 
             # search each wine in vivino
-            tqdm.pandas(desc=f"type: {wine_type}, page: {page}")
+            tqdm.pandas(desc=f"type: {wine_type}, page: {page}/{n_pages}")
             (
                 data["vivino_score"],
                 data["num_reviews"],
@@ -203,7 +203,7 @@ def add_vivino_info(df: pd.DataFrame, site: str):
 
 
 def _add_vivino_info(row):
-    
+
     try:
         r = _vivino_request_page(row.vivino_link)
 
