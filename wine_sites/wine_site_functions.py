@@ -4,10 +4,12 @@ from wine_sites.best_buy import ALL_WINE_TYPES as best_buy_types
 from wine_sites.best_buy import get_data_best_buy
 from wine_sites.navy_wine import ALL_WINE_TYPES as navy_wine_types
 from wine_sites.navy_wine import get_data_navy_wine
+from wine_sites.noevalley import ALL_WINE_TYPES as noevalley_types
+from wine_sites.noevalley import get_data_noevalley
 from wine_sites.wine_dot_com import ALL_WINE_TYPES as wine_dot_com_types
 from wine_sites.wine_dot_com import get_data_wine_dot_com
 
-SITES = ["Berkeley Bowl", "wine.com", "Best Buy", "Navy Wine"]
+SITES = ["Berkeley Bowl", "wine.com", "Best Buy", "Navy Wine", "Noe Valley"]
 
 
 def get_site_fn(site: str):
@@ -28,6 +30,9 @@ def get_site_fn(site: str):
     if site == "Navy Wine":
         return get_data_navy_wine
 
+    if site == "Noe Valley":
+        return get_data_noevalley
+
 
 def get_all_types(site: str):
     """
@@ -46,3 +51,6 @@ def get_all_types(site: str):
 
     if site == "Navy Wine":
         return navy_wine_types
+    
+    if site == "Noe Valley":
+        return noevalley_types
