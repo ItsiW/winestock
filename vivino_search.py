@@ -3,6 +3,7 @@ import json
 import logging
 import re
 from pathlib import Path
+from time import sleep
 from typing import List
 
 import numpy as np
@@ -15,7 +16,7 @@ from tqdm.auto import tqdm
 from wine_sites.wine_site_functions import SITES, get_site_fn
 
 ONE_MINUTE = 60
-CALLS_PER_MINUTE = 9
+CALLS_PER_MINUTE = 8
 
 VIVINO_SEARCH_URL_BASE = "https://www.vivino.com/search/wines?q="
 VIVINO_REFERER = "https://www.vivino.com/AU/en/"
@@ -23,25 +24,72 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 VIVINO_INFO_PATTERN = '{"vintage":{"id.*;\n'
 
 
-def search_site(site: str, categories: List[str]):
+def search_site(
+    site: str,
+    categories: List[str],
+    start_category: str = None,
+    start_page: int = None,
+):
     """
     Searches a website for a set list of categories.
     A pandas dataframe is made with all the wines found
     Each wine is searched in vivino for its score and other details
 
     The function returns the final dataframe, and writes it as a csv
+
+    if a start_category and start_page are provided, the "results/most_recent.csv" will be read in, and the run will start from the category and page provided.
     """
+    if start_category or start_page:
+        assert (
+            start_category and start_page
+        ), "Please provide both a start_category and start_page if starting mid-run"
+        assert (
+            start_category in categories
+        ), f"Please provide a start_category in the available categories for this site. {start_category} not in {categories}"
+
     page_data_fn = get_site_fn(site)
+
     wine_df = pd.DataFrame()
+
+    # if there are previous categories run to completion, load in that data to the main df
+    if start_category:
+        if categories.index(start_category) > 0:
+            wine_df = pd.read_csv("results/most_recent_all.csv")
+
+    categories_to_run = (
+        categories[categories.index(start_category):]
+        if start_category
+        else categories
+    )
 
     logging.warning(
         f"Vivino calls rate limited to {CALLS_PER_MINUTE} per minute"
     )
 
-    for wine_type in categories:
-        df = pd.DataFrame()
+    for wine_type in categories_to_run:
 
-        page = 1
+        if wine_type == start_category:
+
+            page = start_page
+            df = pd.read_csv("results/most_recent_category.csv")
+
+            logging.warning(
+                f"hot starting at category {wine_type} on page {page}"
+            )
+
+            # get n_pages as we are not querying 1st page
+            try:
+                _, n_pages = page_data_fn(wine_type, page=1, get_n_pages=True)
+                logging.warning(f"{n_pages} pages for {wine_type}")
+            except Exception:
+                logging.warning(
+                    f"Error searching for {wine_type}", exc_info=True
+                )
+                break
+        else:
+            page = 1
+            df = pd.DataFrame()
+
         # loop through pages
         while True:
             # for the first page, get the total number of pages
@@ -85,7 +133,7 @@ def search_site(site: str, categories: List[str]):
 
             page += 1
 
-            df.to_csv("results/most_recent.csv")
+            df.to_csv("results/most_recent_category.csv", index=False)
 
             if page > n_pages:
                 break
@@ -93,6 +141,7 @@ def search_site(site: str, categories: List[str]):
         if len(df) > 0:
             df["wine_type"] = wine_type
             wine_df = pd.concat([wine_df, df]).reset_index(drop=True)
+            wine_df.to_csv("results/most_recent_all.csv", index=False)
 
     filename = (
         site.lower().replace(" ", "_")
@@ -163,9 +212,18 @@ def _vivino_request_page(url: str):
     rate limited function to request url
     """
     s = requests.Session()
-    return s.get(
+    r = s.get(
         url, headers={"User-Agent": USER_AGENT, "Referer": VIVINO_REFERER}
     )
+
+    if r.status_code == 429:
+        logging.warning(
+            f"Too many requests, reduce requests per minute. Waiting 5 minutes. Logged on {url}"
+        )
+        sleep(2 * ONE_MINUTE)
+        r = _vivino_request_page(url)
+
+    return r
 
 
 def add_vivino_info(df: pd.DataFrame, site: str):

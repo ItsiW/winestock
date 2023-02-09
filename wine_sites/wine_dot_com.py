@@ -37,25 +37,39 @@ def get_data_wine_dot_com(
     wines = []
 
     for listing in listings:
-        title = listing.find(class_="prodItemInfo_name").text
-        price = float(listing.find("meta", {"itemprop": "price"})["content"])
-        price_whole = int(
-            listing.find(class_="productPrice_price-regWhole").text
-        ) + (
-            int(listing.find(class_="productPrice_price-regFractional").text)
-            / 100
-            if len(
-                listing.find(class_="productPrice_price-regFractional").text
+        try:
+            title = listing.find(class_="prodItemInfo_name").text
+            price = float(
+                listing.find("meta", {"itemprop": "price"})["content"]
             )
-            > 0
-            else 0
-        )
-        url = (
-            "https://www.wine.com"
-            + listing.find(class_="prodItemInfo_link")["href"]
-        )
+            price_whole = int(
+                listing.find(class_="productPrice_price-regWhole").text
+            ) + (
+                int(
+                    listing.find(
+                        class_="productPrice_price-regFractional"
+                    ).text
+                )
+                / 100
+                if len(
+                    listing.find(
+                        class_="productPrice_price-regFractional"
+                    ).text
+                )
+                > 0
+                else 0
+            )
+            url = (
+                "https://www.wine.com"
+                + listing.find(class_="prodItemInfo_link")["href"]
+            )
 
-        wines.append([title, price, price_whole, url])
+            wines.append([title, price, price_whole, url])
+        except AttributeError:
+            assert (
+                listing.find(class_="prodItemStock_soldOut").text[:12]
+                == "Out of Stock"
+            )
 
     df = pd.DataFrame(wines, columns=["title", "price", "price_whole", "url"])
 
